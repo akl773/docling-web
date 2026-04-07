@@ -113,9 +113,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Docling Web</p>
-          <h1>Document Conversion Console</h1>
+        <div className="app-header-main">
+          <img src="/favicon.png" alt="Docling Logo" className="app-logo" />
+          <div>
+            <p className="eyebrow">Docling Web</p>
+            <h1>Document Conversion Console</h1>
+          </div>
         </div>
         <div className="status-bar" aria-label="Queue status">
           <span className="status-chip">
