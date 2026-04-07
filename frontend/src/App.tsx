@@ -14,6 +14,7 @@ import {
   type Job,
   type ConversionSettings,
 } from './lib/api'
+import { SkeletonStats, SkeletonJobList, SkeletonDetail } from './components/Skeletons'
 
 function flattenJobs(batches: Batch[]): Job[] {
   return batches.flatMap((batch) => batch.jobs.map((job) => ({ ...job, batch_id: batch.id })))
@@ -116,12 +117,23 @@ export default function App() {
           <p className="eyebrow">Docling Web</p>
           <h1>Document Conversion Console</h1>
         </div>
-        <div className="status-strip" aria-label="Queue status">
-          <span>Queued {queuedCount}</span>
-          <span>Processing {processingCount}</span>
-          <span>Done {doneCount}</span>
-          <span>Failed {failedCount}</span>
-          <span>Polling 1.5s</span>
+        <div className="status-bar" aria-label="Queue status">
+          <span className="status-chip">
+            <span className="status-dot queued" />
+            Queued <span className="count">{queuedCount}</span>
+          </span>
+          <span className="status-chip">
+            <span className="status-dot processing" />
+            Processing <span className="count">{processingCount}</span>
+          </span>
+          <span className="status-chip">
+            <span className="status-dot done" />
+            Done <span className="count">{doneCount}</span>
+          </span>
+          <span className="status-chip">
+            <span className="status-dot failed" />
+            Failed <span className="count">{failedCount}</span>
+          </span>
         </div>
         {feedback ? <p className="notice-banner">{feedback}</p> : null}
       </header>
@@ -136,8 +148,8 @@ export default function App() {
                 className={`nav-item${currentView === item.id ? ' active' : ''}`}
                 onClick={() => setCurrentView(item.id)}
               >
-                <span>{item.label}</span>
-                {item.count !== undefined ? <span className="nav-count">{item.count}</span> : null}
+                <span className="label">{item.label}</span>
+                {item.count !== undefined ? <span className="count">{item.count}</span> : null}
               </button>
             ))}
           </nav>
@@ -145,86 +157,109 @@ export default function App() {
 
         <main className="view-main">
           {currentView === 'overview' ? (
-            <section className="view-section stack-md">
-              <div className="stats-grid" aria-label="Overview metrics">
-                <div className="stat-row">
-                  <span>Total Jobs</span>
-                  <strong>{jobs.length}</strong>
+            batchesQuery.isLoading ? (
+              <section className="view-section stack-md">
+                <SkeletonStats />
+                <SkeletonJobList />
+              </section>
+            ) : (
+              <section className="view-section stack-md">
+                <div className="stats-grid" aria-label="Overview metrics">
+                  <div className="stat-row">
+                    <span>Total Jobs</span>
+                    <strong>{jobs.length}</strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Queued / Processing</span>
+                    <strong>
+                      {queuedCount} / {processingCount}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Done / Failed</span>
+                    <strong>
+                      {doneCount} / {failedCount}
+                    </strong>
+                  </div>
+                  <div className="stat-row">
+                    <span>Batches</span>
+                    <strong>{batches.length}</strong>
+                  </div>
                 </div>
-                <div className="stat-row">
-                  <span>Queued / Processing</span>
-                  <strong>
-                    {queuedCount} / {processingCount}
-                  </strong>
-                </div>
-                <div className="stat-row">
-                  <span>Done / Failed</span>
-                  <strong>
-                    {doneCount} / {failedCount}
-                  </strong>
-                </div>
-                <div className="stat-row">
-                  <span>Batches</span>
-                  <strong>{batches.length}</strong>
-                </div>
-              </div>
-              <JobTable
-                title="Recent Jobs"
-                description="Most recent queue activity"
-                jobs={recentJobs}
-                batchesById={batchesById}
-                selectedJobId={selectedJobId}
-                onSelectJob={setSelectedJobId}
-              />
-            </section>
+                <JobTable
+                  title="Recent Jobs"
+                  description="Most recent queue activity"
+                  jobs={recentJobs}
+                  batchesById={batchesById}
+                  selectedJobId={selectedJobId}
+                  onSelectJob={setSelectedJobId}
+                  isLoading={batchesQuery.isLoading}
+                />
+              </section>
+            )
           ) : null}
 
           {currentView === 'new-batch' ? (
-            <section className="view-section">
-              <UploadPanel onSubmit={uploadMutation.mutateAsync} isSubmitting={uploadMutation.isPending} />
-            </section>
+            <UploadPanel onSubmit={uploadMutation.mutateAsync} isSubmitting={uploadMutation.isPending} />
           ) : null}
 
           {currentView === 'active-jobs' ? (
-            <section className="split-view">
-              <JobTable
-                title="Active Jobs"
-                description="Queued and processing"
-                jobs={activeJobs}
-                batchesById={batchesById}
-                selectedJobId={selectedJobId}
-                onSelectJob={setSelectedJobId}
-              />
-              <JobDetail
-                job={selectedJob ?? null}
-                batch={selectedBatch}
-                markdown={markdownQuery.data ?? ''}
-                isMarkdownLoading={markdownQuery.isLoading}
-              />
-            </section>
+            batchesQuery.isLoading ? (
+              <section className="split-view">
+                <SkeletonJobList />
+                <SkeletonDetail />
+              </section>
+            ) : (
+              <section className="split-view">
+                <JobTable
+                  title="Active Jobs"
+                  description="Queued and processing"
+                  jobs={activeJobs}
+                  batchesById={batchesById}
+                  selectedJobId={selectedJobId}
+                  onSelectJob={setSelectedJobId}
+                  isLoading={batchesQuery.isLoading}
+                />
+                <JobDetail
+                  job={selectedJob ?? null}
+                  batch={selectedBatch}
+                  markdown={markdownQuery.data ?? ''}
+                  isMarkdownLoading={markdownQuery.isLoading}
+                  isLoading={selectedJobQuery.isLoading}
+                />
+              </section>
+            )
           ) : null}
 
           {currentView === 'history' ? (
-            <section className="split-view">
-              <JobTable
-                title="History"
-                description="Completed and failed"
-                jobs={historyJobs}
-                batchesById={batchesById}
-                selectedJobId={selectedJobId}
-                onSelectJob={setSelectedJobId}
-              />
-              <JobDetail
-                job={selectedJob ?? null}
-                batch={selectedBatch}
-                markdown={markdownQuery.data ?? ''}
-                isMarkdownLoading={markdownQuery.isLoading}
-              />
-            </section>
+            batchesQuery.isLoading ? (
+              <section className="split-view">
+                <SkeletonJobList />
+                <SkeletonDetail />
+              </section>
+            ) : (
+              <section className="split-view">
+                <JobTable
+                  title="History"
+                  description="Completed and failed"
+                  jobs={historyJobs}
+                  batchesById={batchesById}
+                  selectedJobId={selectedJobId}
+                  onSelectJob={setSelectedJobId}
+                  isLoading={batchesQuery.isLoading}
+                />
+                <JobDetail
+                  job={selectedJob ?? null}
+                  batch={selectedBatch}
+                  markdown={markdownQuery.data ?? ''}
+                  isMarkdownLoading={markdownQuery.isLoading}
+                  isLoading={selectedJobQuery.isLoading}
+                />
+              </section>
+            )
           ) : null}
 
-          {batchesQuery.isLoading ? <p className="footer-note">Loading queue state...</p> : null}
-          {batchesQuery.isError ? <p className="footer-note">{String(batchesQuery.error)}</p> : null}
+          {batchesQuery.isLoading ? null : batchesQuery.isError ? <p className="footer-note">{String(batchesQuery.error)}</p> : null}
         </main>
       </div>
     </div>

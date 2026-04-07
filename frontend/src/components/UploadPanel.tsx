@@ -109,7 +109,7 @@ export function UploadPanel({ onSubmit, isSubmitting }: UploadPanelProps) {
   }
 
   return (
-    <section className="view-section stack-md">
+    <section className="view-section">
       <div>
         <p className="eyebrow">New Batch</p>
         <h2>Queue PDFs with shared and per-file settings</h2>
@@ -121,7 +121,7 @@ export function UploadPanel({ onSubmit, isSubmitting }: UploadPanelProps) {
         <span>Batch uploads, persisted history, and restart-safe processing.</span>
       </div>
 
-      <div className="form-band stack-sm">
+      <div className="form-band">
         <div className="field-row">
           <label>
             <span>OCR</span>
@@ -158,39 +158,40 @@ export function UploadPanel({ onSubmit, isSubmitting }: UploadPanelProps) {
         </div>
       </div>
 
-      <div className="file-list stack-sm">
-        {fileRows.length === 0 ? <p className="muted">No files selected.</p> : null}
-        {fileRows.map(({ file, override }) => (
-          <article className="file-row" key={`${file.name}-${file.size}`}>
-            <div>
-              <strong>{file.name}</strong>
-              <p>{Math.ceil(file.size / 1024)} KB</p>
+      {fileRows.length > 0 && (
+        <div className="file-list">
+          {fileRows.map(({ file, override }) => (
+            <div className="file-row" key={`${file.name}-${file.size}`}>
+              <div>
+                <strong>{file.name}</strong>
+                <p>{Math.ceil(file.size / 1024)} KB</p>
+              </div>
+              <div className="override-grid">
+                <select value={override.ocr_enabled} onChange={(event) => updateOverride(file.name, { ocr_enabled: event.target.value as OverrideSelection['ocr_enabled'] })}>
+                  <option value="default">OCR: Default</option>
+                  <option value="true">OCR: On</option>
+                  <option value="false">OCR: Off</option>
+                </select>
+                <select value={override.table_mode} onChange={(event) => updateOverride(file.name, { table_mode: event.target.value as OverrideSelection['table_mode'] })}>
+                  <option value="default">Tables: Default</option>
+                  <option value="off">Tables: Off</option>
+                  <option value="fast">Tables: Fast</option>
+                  <option value="accurate">Tables: Accurate</option>
+                </select>
+                <select value={override.image_handling} onChange={(event) => updateOverride(file.name, { image_handling: event.target.value as OverrideSelection['image_handling'] })}>
+                  <option value="default">Images: Default</option>
+                  <option value="none">Images: None</option>
+                  <option value="referenced">Images: Referenced</option>
+                  <option value="embedded">Images: Embedded</option>
+                </select>
+              </div>
+              <button className="ghost-button" type="button" onClick={() => removeFile(file.name)}>
+                Remove
+              </button>
             </div>
-            <div className="override-grid">
-              <select value={override.ocr_enabled} onChange={(event) => updateOverride(file.name, { ocr_enabled: event.target.value as OverrideSelection['ocr_enabled'] })}>
-                <option value="default">OCR: Default</option>
-                <option value="true">OCR: On</option>
-                <option value="false">OCR: Off</option>
-              </select>
-              <select value={override.table_mode} onChange={(event) => updateOverride(file.name, { table_mode: event.target.value as OverrideSelection['table_mode'] })}>
-                <option value="default">Tables: Default</option>
-                <option value="off">Tables: Off</option>
-                <option value="fast">Tables: Fast</option>
-                <option value="accurate">Tables: Accurate</option>
-              </select>
-              <select value={override.image_handling} onChange={(event) => updateOverride(file.name, { image_handling: event.target.value as OverrideSelection['image_handling'] })}>
-                <option value="default">Images: Default</option>
-                <option value="none">Images: None</option>
-                <option value="referenced">Images: Referenced</option>
-                <option value="embedded">Images: Embedded</option>
-              </select>
-            </div>
-            <button className="ghost-button" type="button" onClick={() => removeFile(file.name)}>
-              Remove
-            </button>
-          </article>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <button className="primary-button" disabled={files.length === 0 || isSubmitting} onClick={() => void handleSubmit()} type="button">
         {isSubmitting ? 'Queueing...' : `Queue ${files.length || ''} PDF${files.length === 1 ? '' : 's'}`}

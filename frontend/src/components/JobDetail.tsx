@@ -3,15 +3,17 @@ import ReactMarkdown from 'react-markdown'
 
 import type { Batch, Job } from '../lib/api'
 import { batchDownloadUrl, jobDownloadUrl, jobSourceUrl } from '../lib/api'
+import { SkeletonDetail } from './Skeletons'
 
 type JobDetailProps = {
   job: Job | null
   batch: Batch | null
   markdown: string
   isMarkdownLoading: boolean
+  isLoading?: boolean
 }
 
-export function JobDetail({ job, batch, markdown, isMarkdownLoading }: JobDetailProps) {
+export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading }: JobDetailProps) {
   const [previewTab, setPreviewTab] = useState<'pdf' | 'markdown'>('pdf')
 
   async function copyMarkdown() {
@@ -21,18 +23,21 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading }: JobDetail
     await navigator.clipboard.writeText(markdown)
   }
 
+  if (isLoading) {
+    return <SkeletonDetail />
+  }
+
   if (!job) {
     return (
       <section className="view-section empty-state">
-        <p className="eyebrow">Preview</p>
         <h2>Select a job to inspect the original PDF and generated Markdown.</h2>
       </section>
     )
   }
 
   return (
-    <section className="view-section detail-panel stack-md">
-      <div className="section-heading">
+    <section className="view-section detail-panel">
+      <div className="detail-header">
         <div>
           <p className="eyebrow">Job Detail</p>
           <h2>{job.original_filename}</h2>
@@ -53,7 +58,7 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading }: JobDetail
       </div>
 
       <div className="detail-meta">
-        <span className="pill muted">{job.status}</span>
+        <span className={`pill ${job.status}`}>{job.status}</span>
         <span>{job.progress}%</span>
         <span>OCR {job.settings_json.ocr_enabled ? 'on' : 'off'}</span>
         <span>Tables {job.settings_json.table_mode}</span>
@@ -84,12 +89,12 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading }: JobDetail
       </div>
 
       <div className="preview-grid">
-        <div className={`preview-pane stack-sm${previewTab !== 'pdf' ? ' pane-hidden-mobile' : ''}`}>
-          <div className="preview-title">Original PDF</div>
+        <div className={`preview-pane${previewTab !== 'pdf' ? ' pane-hidden-mobile' : ''}`}>
+          <div className="preview-pane-title">Original PDF</div>
           <iframe src={jobSourceUrl(job.id)} title={`PDF preview for ${job.original_filename}`} />
         </div>
-        <div className={`preview-pane stack-sm${previewTab !== 'markdown' ? ' pane-hidden-mobile' : ''}`}>
-          <div className="preview-title">Markdown</div>
+        <div className={`preview-pane${previewTab !== 'markdown' ? ' pane-hidden-mobile' : ''}`}>
+          <div className="preview-pane-title">Markdown</div>
           {isMarkdownLoading ? <p className="muted">Loading generated markdown...</p> : null}
           {!isMarkdownLoading && !markdown && job.status !== 'done' ? <p className="muted">Markdown will appear when conversion completes.</p> : null}
           {!isMarkdownLoading && markdown ? (
