@@ -6,6 +6,7 @@ FRONTEND_DIR = frontend
 FRONTEND_NPM = cd $(FRONTEND_DIR) && npm
 BACKEND_DIR = backend
 BACKEND_CD = cd $(BACKEND_DIR) &&
+VENV_PYTHON = $(CURDIR)/.venv/bin/python
 DEV_DATA_DIR = $(CURDIR)/.dev-data
 
 help: ## Show this help message
@@ -18,12 +19,13 @@ dev: ## Start both frontend and backend with hot reload
 
 dev-be: ## Start backend with hot reload (uvicorn --reload)
 	@mkdir -p $(DEV_DATA_DIR)
+	@test -x "$(VENV_PYTHON)" || (printf "Missing project virtualenv at %s\nRun: python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt\n" "$(VENV_PYTHON)" && exit 1)
 	DATABASE_URL="sqlite:///$(DEV_DATA_DIR)/app.db" \
 	DATA_DIR="$(DEV_DATA_DIR)" \
-	FRONTEND_DIST_DIR="$(FRONTEND_DIR)/dist" \
+	FRONTEND_DIST_DIR="$(CURDIR)/$(FRONTEND_DIR)/dist" \
 	MAX_CONCURRENT_JOBS="1" \
 	OMP_NUM_THREADS="4" \
-	$(BACKEND_CD) uvicorn app.main:app --reload --host 0.0.0.0 --port 8176
+	$(VENV_PYTHON) -m uvicorn app.main:app --app-dir $(BACKEND_DIR) --reload --host 0.0.0.0 --port 8176
 
 dev-fe: ## Start frontend with Vite HMR
 	$(FRONTEND_NPM) run dev
