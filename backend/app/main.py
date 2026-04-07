@@ -161,7 +161,10 @@ def create_app(
                 raise HTTPException(status_code=404, detail="Markdown output not found")
             filename = f"{Path(job.original_filename).stem}.md"
             return FileResponse(
-                markdown_path, media_type="text/markdown", filename=filename
+                markdown_path,
+                media_type="text/markdown",
+                filename=filename,
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
             )
 
     @app.get("/api/batches/{batch_id}/download")
@@ -176,10 +179,12 @@ def create_app(
                     status_code=409,
                     detail="No completed outputs available for download",
                 )
+            filename = f"batch-{batch_id}.zip"
             return FileResponse(
                 bundle_path,
                 media_type="application/zip",
-                filename=f"batch-{batch_id}.zip",
+                filename=filename,
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
             )
 
     register_frontend(app, app_settings.frontend_dist_dir)
