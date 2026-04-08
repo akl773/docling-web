@@ -1,9 +1,18 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import remarkGfm from 'remark-gfm'
 
 import type { Batch, Job } from '../lib/api'
 import { batchDownloadUrl, jobDownloadUrl, jobSourceUrl } from '../lib/api'
 import { SkeletonDetail } from './Skeletons'
+
+function urlTransform(url: string, key: string): string {
+  if (key === 'src' && url.startsWith('data:image/')) {
+    return url
+  }
+  return defaultUrlTransform(url)
+}
 
 type JobDetailProps = {
   job: Job | null
@@ -43,17 +52,16 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading }
           <h2>{job.original_filename}</h2>
         </div>
         <div className="action-row">
-          <a className="ghost-link" href={jobDownloadUrl(job.id)}>
-            Download markdown
+          <a className="action-pill" href={jobDownloadUrl(job.id)} title="Download markdown">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Markdown</span>
           </a>
           {batch ? (
-            <a className="ghost-link" href={batchDownloadUrl(batch.id)}>
-              Download batch zip
+            <a className="action-pill" href={batchDownloadUrl(batch.id)} title="Download batch zip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Batch zip</span>
             </a>
           ) : null}
-          <button className="ghost-button" disabled={!markdown} onClick={() => void copyMarkdown()} type="button">
-            Copy markdown
-          </button>
         </div>
       </div>
 
@@ -94,12 +102,29 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading }
           <iframe src={jobSourceUrl(job.id)} title={`PDF preview for ${job.original_filename}`} />
         </div>
         <div className={`preview-pane${previewTab !== 'markdown' ? ' pane-hidden-mobile' : ''}`}>
-          <div className="preview-pane-title">Markdown</div>
+          <div className="preview-pane-header">
+            <div className="preview-pane-title">Markdown</div>
+            <button
+              className="copy-icon-button"
+              disabled={!markdown}
+              onClick={() => void copyMarkdown()}
+              type="button"
+              title="Copy markdown"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
           {isMarkdownLoading ? <p className="muted">Loading generated markdown...</p> : null}
           {!isMarkdownLoading && !markdown && job.status !== 'done' ? <p className="muted">Markdown will appear when conversion completes.</p> : null}
           {!isMarkdownLoading && markdown ? (
             <div className="markdown-shell">
-              <ReactMarkdown>{markdown}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
+                urlTransform={urlTransform}
+              >
+                {markdown}
+              </ReactMarkdown>
             </div>
           ) : null}
         </div>
