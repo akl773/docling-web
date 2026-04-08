@@ -117,9 +117,9 @@ docling-web/
 │   ├── vite.config.ts
 │   └── package.json
 ├── docs/images/                 # Screenshots for README
-├── docker-compose.yml           # Production compose
+├── docker-compose.yml           # Default Docker compose
 ├── docker-compose.dev.yml       # Dev compose (hot reload)
-├── Dockerfile                   # Multi-stage production build
+├── Dockerfile                   # Multi-stage Docker build
 ├── Dockerfile.dev               # Development build targets
 ├── Makefile                     # Project task runner
 └── README.md
@@ -168,13 +168,14 @@ All environment variables are set in `docker-compose.yml` (or `docker-compose.de
 | `DATA_DIR` | Yes | `/data` | Root path for uploads, results, and bundles |
 | `OMP_NUM_THREADS` | No | `4` | Thread count for PyTorch / Docling inference |
 | `MAX_CONCURRENT_JOBS` | No | `1` | Max parallel background conversion workers |
+| `UVICORN_WORKERS` | No | `2` | Uvicorn worker process count for the default Docker setup |
 | `FRONTEND_DIST_DIR` | No | `/app/frontend-dist` | Path to compiled React SPA assets |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ## Running the Project
 
 ```bash
-# Production (detached)
+# Default Docker setup (detached)
 make up
 
 # Development with hot reload (backend + frontend)
@@ -226,7 +227,7 @@ available at `/api/docs` (Swagger UI) and `/api/redoc` (ReDoc).
 ```bash
 make help       # Show all available Makefile targets
 make dev        # Start dev environment with hot reload (Docker)
-make up         # Start production-like environment (Docker)
+make up         # Start default Docker environment
 make down       # Stop environment
 make ps         # Show container status
 make logs       # Follow all logs
