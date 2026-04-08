@@ -8,7 +8,7 @@ help: ## Show this help message
 
 # ── Development (hot reload via Docker) ──────────
 dev: ## Start dev environment with hot reload (Docker)
-	$(COMPOSE) -f docker-compose.dev.yml up --build
+	$(COMPOSE) -f docker-compose.dev.yml up -d --build
 
 dev-down: ## Stop dev environment
 	$(COMPOSE) -f docker-compose.dev.yml down
