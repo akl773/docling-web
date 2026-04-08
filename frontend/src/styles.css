@@ -96,6 +96,9 @@ input {
   width: min(1800px, calc(100vw - 48px));
   margin: 0 auto;
   padding: 24px 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-header {
@@ -212,6 +215,8 @@ input {
   grid-template-columns: 200px 1fr;
   gap: 24px;
   transition: grid-template-columns 0.2s ease;
+  flex: 1;
+  min-height: 0;
 }
 
 .app-frame.sidebar-collapsed {
@@ -355,8 +360,15 @@ input {
 
 .view-main {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding-left: 8px;
   border-left: 1px solid var(--border);
+}
+
+.view-main > .split-view {
+  flex: 1;
 }
 
 .view-section {
@@ -377,6 +389,7 @@ input {
   border-radius: 0;
   padding: 0;
   min-width: 0;
+  min-height: 0;
 }
 
 .view-section h2 {
@@ -419,30 +432,37 @@ input {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex: 0 0 auto;
 }
 
 .section-header p {
   margin: 0;
 }
 
+.job-table-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .split-view {
   display: grid;
-  grid-template-columns: 340px 6px 1fr;
+  grid-template-columns: 340px 6px minmax(0, 1fr);
   gap: 0;
-  height: calc(100vh - 140px);
+  align-items: stretch;
+  min-height: 0;
 }
 
 .split-view > :first-child {
   padding-right: 8px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .split-view > :last-child {
   padding-left: 8px;
-}
-
-.split-view .job-list {
-  max-height: calc(100vh - 260px);
-  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .resize-handle {
@@ -465,19 +485,21 @@ input {
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
+  background: var(--surface);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .job-row {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 14px 16px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   text-align: left;
-  cursor: pointer;
   transition: background 0.15s;
   min-width: 0;
   max-width: 100%;
@@ -488,7 +510,8 @@ input {
   border-bottom: none;
 }
 
-.job-row:hover {
+.job-row:hover,
+.job-row:focus-within {
   background: var(--surface-hover);
 }
 
@@ -498,20 +521,63 @@ input {
   padding-left: 13px;
 }
 
+.job-row-hit-area {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  z-index: 1;
+}
+
+.job-row-hit-area:focus-visible {
+  outline: none;
+}
+
+.job-row-shell {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .job-row-main {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
   min-width: 0;
-  overflow: hidden;
+  pointer-events: none;
 }
 
-.job-row-main > div {
+.job-row-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.job-row-leading {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  padding-top: 1px;
+}
+
+.job-row-text,
+.job-row-badges,
+.job-row-footer,
+.job-row-actions,
+.job-meta {
   min-width: 0;
 }
 
-.job-row-main strong {
+.job-row-text strong {
   display: block;
   color: var(--text-heading);
   font-weight: 500;
@@ -521,14 +587,33 @@ input {
   max-width: 100%;
 }
 
-.job-row-main p {
+.job-row-text p {
   margin: 2px 0 0;
   color: var(--text-muted);
   font-size: 0.8125rem;
+  overflow-wrap: anywhere;
 }
 
-.job-row-main .pill {
+.job-row-badges {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.job-row-badges .pill {
+  flex-shrink: 0;
+}
+
+.job-row-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  pointer-events: none;
 }
 
 .job-meta {
@@ -537,10 +622,30 @@ input {
   gap: 12px;
   color: var(--text-muted);
   font-size: 0.8125rem;
+  flex-wrap: wrap;
+  flex: 1 1 180px;
+  pointer-events: none;
 }
 
-.job-meta a {
-  color: var(--text-link);
+.job-meta > *,
+.job-row-actions > * {
+  min-width: 0;
+}
+
+.job-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+.job-row-actions a,
+.job-row-actions button {
+  position: relative;
+  z-index: 3;
 }
 
 .progress-bar {
@@ -548,6 +653,8 @@ input {
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
+  min-width: 0;
+  pointer-events: none;
 }
 
 .progress-bar span {
@@ -1163,7 +1270,8 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: calc(100vh - 140px);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1218,57 +1326,27 @@ select:focus {
   border-bottom: none;
 }
 
-.batch-group-header {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: background 0.15s;
+.batch-group > .job-row.batch-group-header {
+  border-bottom: none;
   background: var(--surface-hover);
-  min-width: 0;
-  overflow: hidden;
 }
 
-.batch-group-header:hover {
+.batch-group > .job-row.batch-group-header:hover,
+.batch-group > .job-row.batch-group-header:focus-within {
   background: var(--border);
 }
 
-.batch-group-header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.batch-group-header-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-
-.batch-group-header-left strong {
+.job-row.batch-group-header .job-row-text strong {
   display: block;
   color: var(--text-heading);
   font-weight: 600;
   font-size: 0.9375rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.batch-group-header-left p {
-  margin: 2px 0 0;
-  color: var(--text-muted);
-  font-size: 0.8125rem;
 }
 
 .batch-status-summary {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -1294,11 +1372,11 @@ select:focus {
   border-top: 1px solid var(--border);
 }
 
-.batch-group-jobs .job-row.batch-child {
-  padding-left: 36px;
+.job-row.batch-child .job-row-title-group {
+  padding-left: 26px;
 }
 
-.batch-group-jobs .job-row.batch-child .job-row-main strong {
+.job-row.batch-child .job-row-text strong {
   font-weight: 400;
   font-size: 0.875rem;
 }
@@ -1308,7 +1386,12 @@ select:focus {
 }
 
 @media (max-width: 1200px) {
-  .split-view { grid-template-columns: 1fr !important; height: auto; }
+  .split-view { grid-template-columns: 1fr !important; min-height: 0; }
+  .split-view > :first-child {
+    padding-right: 0;
+    padding-bottom: 16px;
+  }
+  .split-view > :last-child { padding-left: 0; }
   .resize-handle { display: none; }
   .detail-panel { height: auto; overflow: visible; }
   .preview-grid { grid-template-columns: 1fr; }
@@ -1324,6 +1407,18 @@ select:focus {
   .view-main {
     padding-left: 0;
     border-left: none;
+  }
+  .job-row-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .job-row-badges,
+  .job-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .job-row-actions {
+    margin-left: 0;
   }
   .side-nav {
     position: static;
@@ -1368,7 +1463,21 @@ select:focus {
   .field-row { flex-direction: column; }
   label { width: 100%; }
   .stats-grid { grid-template-columns: 1fr; }
-  .job-row-main { flex-direction: column; gap: 8px; }
+  .job-row { padding: 12px 14px; }
+  .job-row-main,
+  .job-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .job-row-title-group,
+  .job-row-badges,
+  .job-row-actions {
+    width: 100%;
+  }
+  .job-row.batch-child .job-row-title-group {
+    padding-left: 18px;
+  }
   .detail-header { flex-direction: column; }
   .action-row { flex-wrap: wrap; }
 }

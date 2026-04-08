@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Batch, Job, JobStatus } from '../lib/api'
 import { batchDownloadUrl } from '../lib/api'
 import { SkeletonJobRow } from './Skeletons'
@@ -44,6 +44,72 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   )
 }
 
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString()
+}
+
+type JobRowFrameProps = {
+  ariaLabel: string
+  title: string
+  progress: number
+  onActivate: () => void
+  badge?: ReactNode
+  subtitle?: string
+  meta?: ReactNode
+  actions?: ReactNode
+  leading?: ReactNode
+  isSelected?: boolean
+  className?: string
+}
+
+function JobRowFrame({
+  ariaLabel,
+  title,
+  progress,
+  onActivate,
+  badge,
+  subtitle,
+  meta,
+  actions,
+  leading,
+  isSelected = false,
+  className,
+}: JobRowFrameProps) {
+  return (
+    <div className={`job-row${className ? ` ${className}` : ''}${isSelected ? ' selected' : ''}`} role="listitem">
+      <button
+        aria-label={ariaLabel}
+        className="job-row-hit-area"
+        onClick={onActivate}
+        type="button"
+      />
+      <div className="job-row-shell">
+        <div className="job-row-main">
+          <div className="job-row-title-group">
+            {leading ? (
+              <span className="job-row-leading" aria-hidden="true">
+                {leading}
+              </span>
+            ) : null}
+            <div className="job-row-text">
+              <strong>{title}</strong>
+              {subtitle ? <p>{subtitle}</p> : null}
+            </div>
+          </div>
+          {badge ? <div className="job-row-badges">{badge}</div> : null}
+        </div>
+        <div className="progress-bar" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+        <div className="job-row-footer">
+          {meta ? <div className="job-meta">{meta}</div> : <span />}
+          {actions ? <div className="job-row-actions">{actions}</div> : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SingleJobRow({
   job,
   isSelected,
@@ -54,26 +120,16 @@ function SingleJobRow({
   onSelectJob: (jobId: string) => void
 }) {
   return (
-    <button
-      className={`job-row${isSelected ? ' selected' : ''}`}
-      onClick={() => onSelectJob(job.id)}
-      type="button"
-      role="listitem"
-    >
-      <div className="job-row-main">
-        <div>
-          <strong>{job.original_filename}</strong>
-          <p>{new Date(job.created_at).toLocaleString()}</p>
-        </div>
-        <span className={`pill ${job.status}`}>{job.status}</span>
-      </div>
-      <div className="progress-bar">
-        <span style={{ width: `${job.progress}%` }} />
-      </div>
-      <div className="job-meta">
-        <span>{job.progress}%</span>
-      </div>
-    </button>
+    <JobRowFrame
+      ariaLabel={`Select job ${job.original_filename}`}
+      badge={<span className={`pill ${job.status}`}>{job.status}</span>}
+      isSelected={isSelected}
+      meta={<span>{job.progress}%</span>}
+      onActivate={() => onSelectJob(job.id)}
+      progress={job.progress}
+      subtitle={formatTimestamp(job.created_at)}
+      title={job.original_filename}
+    />
   )
 }
 
@@ -98,15 +154,10 @@ function BatchGroupHeader({
   )
 
   return (
-    <div className="batch-group-header" onClick={onToggle} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}>
-      <div className="batch-group-header-top">
-        <div className="batch-group-header-left">
-          <ChevronIcon expanded={expanded} />
-          <div>
-            <strong>Batch {group.batchId.slice(0, 8)}</strong>
-            <p>{fileLabel} &middot; {new Date(group.latestCreatedAt).toLocaleString()}</p>
-          </div>
-        </div>
+    <JobRowFrame
+      actions={<a href={batchDownloadUrl(group.batch.id)}>Download batch zip</a>}
+      ariaLabel={`${expanded ? 'Collapse' : 'Expand'} batch ${group.batchId.slice(0, 8)}`}
+      badge={
         <div className="batch-status-summary">
           {statusEntries.map(([status, count]) => (
             <span key={status} className={`pill mini ${status}`}>
@@ -114,20 +165,15 @@ function BatchGroupHeader({
             </span>
           ))}
         </div>
-      </div>
-      <div className="progress-bar">
-        <span style={{ width: `${group.aggregateProgress}%` }} />
-      </div>
-      <div className="job-meta">
-        <span>{Math.round(group.aggregateProgress)}%</span>
-        <a
-          href={batchDownloadUrl(group.batch.id)}
-          onClick={(e) => e.stopPropagation()}
-        >
-          Download batch zip
-        </a>
-      </div>
-    </div>
+      }
+      className="batch-group-header"
+      leading={<ChevronIcon expanded={expanded} />}
+      meta={<span>{Math.round(group.aggregateProgress)}%</span>}
+      onActivate={onToggle}
+      progress={group.aggregateProgress}
+      subtitle={`${fileLabel} · ${formatTimestamp(group.latestCreatedAt)}`}
+      title={`Batch ${group.batchId.slice(0, 8)}`}
+    />
   )
 }
 
@@ -141,25 +187,16 @@ function BatchGroupJobRow({
   onSelectJob: (jobId: string) => void
 }) {
   return (
-    <button
-      className={`job-row batch-child${isSelected ? ' selected' : ''}`}
-      onClick={() => onSelectJob(job.id)}
-      type="button"
-      role="listitem"
-    >
-      <div className="job-row-main">
-        <div>
-          <strong>{job.original_filename}</strong>
-        </div>
-        <span className={`pill ${job.status}`}>{job.status}</span>
-      </div>
-      <div className="progress-bar">
-        <span style={{ width: `${job.progress}%` }} />
-      </div>
-      <div className="job-meta">
-        <span>{job.progress}%</span>
-      </div>
-    </button>
+    <JobRowFrame
+      ariaLabel={`Select job ${job.original_filename}`}
+      badge={<span className={`pill ${job.status}`}>{job.status}</span>}
+      className="batch-child"
+      isSelected={isSelected}
+      meta={<span>{job.progress}%</span>}
+      onActivate={() => onSelectJob(job.id)}
+      progress={job.progress}
+      title={job.original_filename}
+    />
   )
 }
 
@@ -179,45 +216,41 @@ function FlatJobRow({
   onSelectBatch?: (batchId: string) => void
   selectedBatchFilter?: string | null
 }) {
+  const actions = [
+    batch && batch.file_count > 1 && onSelectBatch && !selectedBatchFilter ? (
+      <button
+        key="batch"
+        type="button"
+        className="batch-badge"
+        onClick={() => onSelectBatch(job.batch_id)}
+      >
+        {batch.file_count} files
+      </button>
+    ) : null,
+    batch ? (
+      <a key="download" href={batchDownloadUrl(batch.id)}>
+        Download batch zip
+      </a>
+    ) : null,
+  ].filter((action) => action !== null)
+
   return (
-    <button
-      className={`job-row${isSelected ? ' selected' : ''}`}
-      onClick={() => onSelectJob(job.id)}
-      type="button"
-      role="listitem"
-    >
-      <div className="job-row-main">
-        <div>
-          <strong>{job.original_filename}</strong>
-          <p>{new Date(job.created_at).toLocaleString()}</p>
-        </div>
-        <span className={`pill ${job.status}`}>{job.status}</span>
-      </div>
-      <div className="progress-bar">
-        <span style={{ width: `${job.progress}%` }} />
-      </div>
-      <div className="job-meta">
-        <span>{job.progress}%</span>
-        <span>Batch {job.batch_id.slice(0, 8)}</span>
-        {batch && batch.file_count > 1 && onSelectBatch && !selectedBatchFilter ? (
-          <button
-            type="button"
-            className="batch-badge"
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelectBatch(job.batch_id)
-            }}
-          >
-            {batch.file_count} files
-          </button>
-        ) : null}
-        {batch ? (
-          <a href={batchDownloadUrl(batch.id)} onClick={(event) => event.stopPropagation()}>
-            Download batch zip
-          </a>
-        ) : null}
-      </div>
-    </button>
+    <JobRowFrame
+      actions={actions.length > 0 ? actions : undefined}
+      ariaLabel={`Select job ${job.original_filename}`}
+      badge={<span className={`pill ${job.status}`}>{job.status}</span>}
+      isSelected={isSelected}
+      meta={
+        <>
+          <span>{job.progress}%</span>
+          <span>{formatTimestamp(job.created_at)}</span>
+          <span>Batch {job.batch_id.slice(0, 8)}</span>
+        </>
+      }
+      onActivate={() => onSelectJob(job.id)}
+      progress={job.progress}
+      title={job.original_filename}
+    />
   )
 }
 
@@ -296,7 +329,7 @@ export function JobTable({ title, description, jobs, batchesById, selectedJobId,
   }
 
   return (
-    <section className="view-section">
+    <section className="view-section job-table-section">
       <div className="section-header">
         <div>
           {selectedBatchFilter ? (

@@ -25,6 +25,10 @@ function flattenJobs(batches: Batch[]): Job[] {
 type AppView = 'overview' | 'new-batch' | 'active-jobs' | 'history'
 
 const VALID_VIEWS: AppView[] = ['overview', 'new-batch', 'active-jobs', 'history']
+const MIN_LIST_PANEL_WIDTH = 260
+const MAX_LIST_PANEL_WIDTH = 600
+const RESIZE_HANDLE_WIDTH = 6
+const MIN_DETAIL_PANEL_WIDTH = 360
 
 function getViewFromHash(): AppView {
   const hash = window.location.hash.replace('#', '')
@@ -42,6 +46,31 @@ export default function App() {
   const [panelWidth, setPanelWidth] = useState(340)
   const isResizing = useRef(false)
   const handleRef = useRef<HTMLDivElement>(null)
+  const splitViewRef = useRef<HTMLElement>(null)
+
+  const getPanelBounds = useCallback(() => {
+    const container = splitViewRef.current
+
+    if (!container) {
+      return { min: MIN_LIST_PANEL_WIDTH, max: MAX_LIST_PANEL_WIDTH }
+    }
+
+    const containerWidth = container.getBoundingClientRect().width
+    const maxWidth = Math.max(
+      MIN_LIST_PANEL_WIDTH,
+      Math.min(MAX_LIST_PANEL_WIDTH, containerWidth - RESIZE_HANDLE_WIDTH - MIN_DETAIL_PANEL_WIDTH),
+    )
+
+    return { min: MIN_LIST_PANEL_WIDTH, max: maxWidth }
+  }, [])
+
+  const clampPanelWidth = useCallback(
+    (width: number) => {
+      const { min, max } = getPanelBounds()
+      return Math.min(max, Math.max(min, width))
+    },
+    [getPanelBounds],
+  )
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -52,11 +81,10 @@ export default function App() {
 
     const onMove = (ev: MouseEvent) => {
       if (!isResizing.current) return
-      const container = handleRef.current?.parentElement
+      const container = splitViewRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      const newWidth = Math.min(600, Math.max(260, ev.clientX - rect.left))
-      setPanelWidth(newWidth)
+      setPanelWidth(clampPanelWidth(ev.clientX - rect.left))
     }
     const onUp = () => {
       isResizing.current = false
@@ -68,9 +96,22 @@ export default function App() {
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [])
+  }, [clampPanelWidth])
 
-  const splitStyle = { gridTemplateColumns: `${panelWidth}px 6px 1fr` }
+  useEffect(() => {
+    function syncPanelWidth() {
+      setPanelWidth((current) => clampPanelWidth(current))
+    }
+
+    syncPanelWidth()
+    window.addEventListener('resize', syncPanelWidth)
+    return () => window.removeEventListener('resize', syncPanelWidth)
+  }, [clampPanelWidth, currentView])
+
+  const splitStyle = useMemo(
+    () => ({ gridTemplateColumns: `${panelWidth}px ${RESIZE_HANDLE_WIDTH}px minmax(0, 1fr)` }),
+    [panelWidth],
+  )
 
   const batchesQuery = useQuery({
     queryKey: ['batches'],
@@ -367,13 +408,13 @@ export default function App() {
 
           {currentView === 'active-jobs' ? (
             batchesQuery.isLoading ? (
-              <section className="split-view" style={splitStyle}>
+              <section className="split-view" ref={splitViewRef} style={splitStyle}>
                 <SkeletonJobList />
                 <div className="resize-handle" ref={handleRef} onMouseDown={onResizeStart} />
                 <SkeletonDetail />
               </section>
             ) : (
-              <section className="split-view" style={splitStyle}>
+              <section className="split-view" ref={splitViewRef} style={splitStyle}>
                 <JobTable
                   title="Active Jobs"
                   description="Queued and processing"
@@ -400,13 +441,13 @@ export default function App() {
 
           {currentView === 'history' ? (
             batchesQuery.isLoading ? (
-              <section className="split-view" style={splitStyle}>
+              <section className="split-view" ref={splitViewRef} style={splitStyle}>
                 <SkeletonJobList />
                 <div className="resize-handle" ref={handleRef} onMouseDown={onResizeStart} />
                 <SkeletonDetail />
               </section>
             ) : (
-              <section className="split-view" style={splitStyle}>
+              <section className="split-view" ref={splitViewRef} style={splitStyle}>
                 <JobTable
                   title="History"
                   description="Completed and failed"
