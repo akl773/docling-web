@@ -1,4 +1,4 @@
-.PHONY: help dev up down ps logs logs-backend clean
+.PHONY: help dev dev-down dev-logs dev-logs-backend up down ps logs logs-backend clean
 
 # Variables
 COMPOSE = docker compose
@@ -10,12 +10,22 @@ help: ## Show this help message
 dev: ## Start dev environment with hot reload (Docker)
 	$(COMPOSE) -f docker-compose.dev.yml up --build
 
+dev-down: ## Stop dev environment
+	$(COMPOSE) -f docker-compose.dev.yml down
+
+dev-logs: ## View dev logs
+	$(COMPOSE) -f docker-compose.dev.yml logs -f
+
+dev-logs-backend: ## View dev backend logs
+	$(COMPOSE) -f docker-compose.dev.yml logs -f backend
+
 # ── Docker (production-like) ─────────────────────
 up: ## Start environment, full stack (Docker)
 	$(COMPOSE) up -d --build
 
 down: ## Stop environment
-	$(COMPOSE) down
+	-$(COMPOSE) -f docker-compose.dev.yml down
+	-$(COMPOSE) down
 
 ps: ## Show containers status
 	$(COMPOSE) ps
@@ -27,4 +37,5 @@ logs-backend: ## View backend logs
 	$(COMPOSE) logs -f app
 
 clean: ## Clean up containers, volumes, orphans
-	$(COMPOSE) down -v --remove-orphans
+	-$(COMPOSE) -f docker-compose.dev.yml down -v --remove-orphans
+	-$(COMPOSE) down -v --remove-orphans
