@@ -24,9 +24,16 @@ function flattenJobs(batches: Batch[]): Job[] {
 
 type AppView = 'overview' | 'new-batch' | 'active-jobs' | 'history'
 
+const VALID_VIEWS: AppView[] = ['overview', 'new-batch', 'active-jobs', 'history']
+
+function getViewFromHash(): AppView {
+  const hash = window.location.hash.replace('#', '')
+  return VALID_VIEWS.includes(hash as AppView) ? (hash as AppView) : 'overview'
+}
+
 export default function App() {
   const queryClient = useQueryClient()
-  const [currentView, setCurrentView] = useState<AppView>('overview')
+  const [currentView, setCurrentView] = useState<AppView>(getViewFromHash)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [selectedBatchFilter, setSelectedBatchFilter] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string>('')
@@ -95,6 +102,7 @@ export default function App() {
   const queuedCount = jobs.filter((job) => job.status === 'queued').length
 
   function navigateToView(view: AppView) {
+    window.location.hash = view
     setCurrentView(view)
     setSelectedBatchFilter(null)
   }
@@ -127,6 +135,16 @@ export default function App() {
       setSelectedJobId(recentJobs[0]?.id ?? null)
     }
   }, [activeJobs, currentView, historyJobs, jobs, recentJobs, selectedJobId])
+
+  useEffect(() => {
+    function onHashChange() {
+      const view = getViewFromHash()
+      setCurrentView(view)
+      setSelectedBatchFilter(null)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   const navItems: Array<{ id: AppView; label: string; count?: number }> = [
     { id: 'overview', label: 'Overview' },
