@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 
 import type { ConversionSettings, FileOverrideState, ImageHandling, TableMode } from '../lib/api'
@@ -45,8 +45,18 @@ function buildDefaultSelection(): OverrideSelection {
 
 export function UploadPanel({ onSubmit, isSubmitting }: UploadPanelProps) {
   const [files, setFiles] = useState<File[]>([])
-  const [settings, setSettings] = useState<ConversionSettings>(defaultSettings)
+  const [settings, setSettings] = useState<ConversionSettings>(() => {
+    try {
+      const saved = localStorage.getItem('docling-settings')
+      if (saved) return { ...defaultSettings, ...JSON.parse(saved) }
+    } catch { /* ignore */ }
+    return defaultSettings
+  })
   const [overrides, setOverrides] = useState<Record<string, OverrideSelection>>({})
+
+  useEffect(() => {
+    localStorage.setItem('docling-settings', JSON.stringify(settings))
+  }, [settings])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'application/pdf': ['.pdf'] },
