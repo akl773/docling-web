@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -33,6 +37,9 @@ from app.services.worker import WorkerCoordinator
 from app.storage import StorageManager
 
 
+logger = logging.getLogger(__name__)
+
+
 def create_app(
     settings: Settings | None = None,
     conversion_service: ConversionService | None = None,
@@ -56,6 +63,12 @@ def create_app(
     async def lifespan(_: FastAPI):
         storage.ensure_layout()
         Base.metadata.create_all(bind=engine)
+        logger.info(
+            "Starting app pid=%s max_concurrent_jobs=%s uvicorn_workers=%s",
+            os.getpid(),
+            app_settings.max_concurrent_jobs,
+            app_settings.uvicorn_workers,
+        )
         worker.start()
         try:
             yield
@@ -69,6 +82,36 @@ def create_app(
     app.state.storage = storage
     app.state.bundler = bundler
     app.state.worker = worker
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            logger.exception(
+                "Request failed pid=%s tid=%s method=%s path=%s duration_ms=%.1f",
+                os.getpid(),
+                threading.get_ident(),
+                request.method,
+                request.url.path,
+                elapsed_ms,
+            )
+            raise
+
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        if elapsed_ms >= 1000:
+            logger.warning(
+                "Slow request pid=%s tid=%s method=%s path=%s status=%s duration_ms=%.1f",
+                os.getpid(),
+                threading.get_ident(),
+                request.method,
+                request.url.path,
+                response.status_code,
+                elapsed_ms,
+            )
+        return response
 
     @app.get("/api/health", response_model=HealthRead)
     def health() -> HealthRead:

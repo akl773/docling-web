@@ -12,6 +12,7 @@ services:
       OMP_NUM_THREADS: "4"
       PYTHONUNBUFFERED: "1"
       MAX_CONCURRENT_JOBS: "1"
+      UVICORN_RELOAD: "1"
     volumes:
       - ./backend/app:/app/backend/app
       - app_data:/data

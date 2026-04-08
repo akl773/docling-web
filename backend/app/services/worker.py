@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import logging
+import multiprocessing as mp
+import os
+import queue
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
@@ -18,10 +22,18 @@ from app.repositories import (
 )
 from app.schemas import ConversionSettings
 from app.services.bundler import BatchBundleBuilder
-from app.services.docling_adapter import ConversionService
+from app.services.docling_adapter import (
+    ConversionService,
+    DoclingConversionService,
+    run_docling_conversion_job,
+)
 from app.storage import StorageManager
 
 logger = logging.getLogger(__name__)
+
+
+class ShutdownRequested(Exception):
+    pass
 
 
 class WorkerCoordinator:
@@ -50,6 +62,12 @@ class WorkerCoordinator:
     def start(self) -> None:
         if self.thread is not None:
             return
+        logger.info(
+            "Starting worker coordinator pid=%s max_concurrent_jobs=%s poll_interval=%s",
+            os.getpid(),
+            self.max_concurrent_jobs,
+            self.poll_interval,
+        )
         with session_scope(self.session_factory) as session:
             recovered = recover_processing_jobs(session)
             if recovered:
@@ -89,7 +107,15 @@ class WorkerCoordinator:
                 logger.exception("Worker future crashed for job %s", job_id)
 
     def _process_job(self, job_id: str) -> None:
+        started = time.perf_counter()
         try:
+            logger.info(
+                "Job started job_id=%s pid=%s tid=%s active_jobs=%s",
+                job_id,
+                os.getpid(),
+                threading.get_ident(),
+                len(self.running),
+            )
             with session_scope(self.session_factory) as session:
                 job = get_job(session, job_id)
                 if job is None:
@@ -101,18 +127,138 @@ class WorkerCoordinator:
             with session_scope(self.session_factory) as session:
                 set_job_progress(session, job_id, 50)
 
-            document = self.converter.convert_document(source_path, settings)
-
-            with session_scope(self.session_factory) as session:
-                set_job_progress(session, job_id, 75)
-
-            self.converter.save_markdown(document, markdown_path, assets_dir, settings)
+            self._run_conversion(
+                job_id, source_path, markdown_path, assets_dir, settings
+            )
 
             with session_scope(self.session_factory) as session:
                 set_job_progress(session, job_id, 90)
                 job = mark_job_done(session, job_id)
                 if job is not None:
                     self.bundler.build_for_batch(session, job.batch_id)
+            logger.info(
+                "Job finished job_id=%s pid=%s tid=%s duration_ms=%.1f",
+                job_id,
+                os.getpid(),
+                threading.get_ident(),
+                (time.perf_counter() - started) * 1000,
+            )
+        except ShutdownRequested:
+            logger.info(
+                "Job interrupted for shutdown job_id=%s pid=%s tid=%s duration_ms=%.1f",
+                job_id,
+                os.getpid(),
+                threading.get_ident(),
+                (time.perf_counter() - started) * 1000,
+            )
         except Exception as exc:
+            logger.exception(
+                "Job failed job_id=%s pid=%s tid=%s duration_ms=%.1f",
+                job_id,
+                os.getpid(),
+                threading.get_ident(),
+                (time.perf_counter() - started) * 1000,
+            )
             with session_scope(self.session_factory) as session:
                 mark_job_failed(session, job_id, str(exc))
+
+    def _run_conversion(
+        self,
+        job_id: str,
+        source_path: Path,
+        markdown_path: Path,
+        assets_dir: Path,
+        settings: ConversionSettings,
+    ) -> None:
+        if not isinstance(self.converter, DoclingConversionService):
+            document = self.converter.convert_document(source_path, settings)
+
+            with session_scope(self.session_factory) as session:
+                set_job_progress(session, job_id, 75)
+
+            self.converter.save_markdown(document, markdown_path, assets_dir, settings)
+            return
+
+        self._run_docling_conversion_in_subprocess(
+            job_id, source_path, markdown_path, assets_dir, settings
+        )
+
+    def _run_docling_conversion_in_subprocess(
+        self,
+        job_id: str,
+        source_path: Path,
+        markdown_path: Path,
+        assets_dir: Path,
+        settings: ConversionSettings,
+    ) -> None:
+        result_queue: mp.Queue[dict[str, str | None]] = mp.Queue(maxsize=1)
+        process = mp.get_context("spawn").Process(
+            target=_docling_process_entrypoint,
+            args=(
+                result_queue,
+                str(source_path),
+                str(markdown_path),
+                str(assets_dir),
+                settings.model_dump(),
+                self.converter.settings.model_dump(mode="json"),
+            ),
+            daemon=True,
+        )
+        process.start()
+        logger.info(
+            "Docling subprocess started job_id=%s child_pid=%s parent_pid=%s",
+            job_id,
+            process.pid,
+            os.getpid(),
+        )
+
+        try:
+            while process.is_alive():
+                if self.stop_event.wait(0.5):
+                    process.terminate()
+                    process.join(timeout=2)
+                    raise ShutdownRequested
+
+            process.join(timeout=0.1)
+
+            try:
+                result = result_queue.get_nowait()
+            except queue.Empty:
+                if process.exitcode == 0:
+                    result = {"status": "ok", "error": None}
+                else:
+                    raise RuntimeError(
+                        f"Docling subprocess exited with code {process.exitcode}"
+                    )
+
+            if result.get("status") != "ok":
+                raise RuntimeError(result.get("error") or "Docling conversion failed")
+
+            with session_scope(self.session_factory) as session:
+                set_job_progress(session, job_id, 75)
+        finally:
+            result_queue.close()
+            result_queue.join_thread()
+
+
+def _docling_process_entrypoint(
+    result_queue: mp.Queue[dict[str, str | None]],
+    source_path: str,
+    markdown_path: str,
+    assets_dir: str,
+    settings: dict,
+    app_settings: dict,
+) -> None:
+    try:
+        run_docling_conversion_job(
+            source_path=source_path,
+            output_path=markdown_path,
+            assets_dir=assets_dir,
+            conversion_settings=settings,
+            app_settings=app_settings,
+        )
+    except Exception as exc:
+        result_queue.put({"status": "error", "error": str(exc)})
+        raise
+    else:
+        result_queue.put({"status": "ok", "error": None})

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pyright: reportMissingImports=false
+
 import shutil
 from pathlib import Path
 from typing import Any, Protocol
@@ -115,3 +117,16 @@ class DoclingConversionService:
             markdown = markdown.replace(f"]({old_rel})", f"]({new_rel})")
             markdown = markdown.replace(f'src="{old_rel}"', f'src="{new_rel}"')
         output_path.write_text(markdown, encoding="utf-8")
+
+
+def run_docling_conversion_job(
+    source_path: str,
+    output_path: str,
+    assets_dir: str,
+    conversion_settings: dict[str, Any],
+    app_settings: dict[str, Any],
+) -> None:
+    service = DoclingConversionService(Settings.model_validate(app_settings))
+    settings = ConversionSettings.model_validate(conversion_settings)
+    document = service.convert_document(Path(source_path), settings)
+    service.save_markdown(document, Path(output_path), Path(assets_dir), settings)
