@@ -10,15 +10,33 @@ type JobTableProps = {
   selectedJobId: string | null
   onSelectJob: (jobId: string) => void
   isLoading?: boolean
+  onSelectBatch?: (batchId: string) => void
+  selectedBatchFilter?: string | null
+  onClearBatchFilter?: () => void
 }
 
-export function JobTable({ title, description, jobs, batchesById, selectedJobId, onSelectJob, isLoading }: JobTableProps) {
+export function JobTable({ title, description, jobs, batchesById, selectedJobId, onSelectJob, isLoading, onSelectBatch, selectedBatchFilter, onClearBatchFilter }: JobTableProps) {
   return (
     <section className="view-section">
       <div className="section-header">
         <div>
-          <p className="eyebrow">{title}</p>
-          <h2>{description}</h2>
+          {selectedBatchFilter ? (
+            <>
+              <p className="eyebrow">
+                <button type="button" className="breadcrumb-link" onClick={onClearBatchFilter}>
+                  {title}
+                </button>
+                {' \u203A '}
+                Batch {selectedBatchFilter.slice(0, 8)}
+              </p>
+              <h2>{jobs.length} file{jobs.length === 1 ? '' : 's'} in batch</h2>
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">{title}</p>
+              <h2>{description}</h2>
+            </>
+          )}
         </div>
       </div>
 
@@ -59,6 +77,18 @@ export function JobTable({ title, description, jobs, batchesById, selectedJobId,
                 <div className="job-meta">
                   <span>{job.progress}%</span>
                   <span>Batch {job.batch_id.slice(0, 8)}</span>
+                  {batch && batch.file_count > 1 && onSelectBatch && !selectedBatchFilter ? (
+                    <button
+                      type="button"
+                      className="batch-badge"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelectBatch(job.batch_id)
+                      }}
+                    >
+                      {batch.file_count} files
+                    </button>
+                  ) : null}
                   {batch ? (
                     <a href={batchDownloadUrl(batch.id)} onClick={(event) => event.stopPropagation()}>
                       Download batch zip

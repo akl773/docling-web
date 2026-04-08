@@ -76,11 +76,11 @@ export function SkeletonDetail() {
       <div className="preview-grid">
         <div className="preview-pane">
           <div className="preview-pane-title">Original PDF</div>
-          <div className="skeleton" style={{ height: '480px', borderRadius: '8px' }} />
+          <div className="skeleton" style={{ flex: 1, minHeight: '300px', borderRadius: '8px' }} />
         </div>
         <div className="preview-pane">
           <div className="preview-pane-title">Markdown</div>
-          <div className="skeleton" style={{ height: '480px', borderRadius: '8px' }} />
+          <div className="skeleton" style={{ flex: 1, minHeight: '300px', borderRadius: '8px' }} />
         </div>
       </div>
     </section>

@@ -28,6 +28,7 @@ export default function App() {
   const queryClient = useQueryClient()
   const [currentView, setCurrentView] = useState<AppView>('overview')
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [selectedBatchFilter, setSelectedBatchFilter] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string>('')
   const [theme, toggleTheme] = useTheme()
 
@@ -79,12 +80,33 @@ export default function App() {
   const activeJobs = jobs.filter((job) => job.status === 'queued' || job.status === 'processing')
   const historyJobs = jobs.filter((job) => job.status === 'done' || job.status === 'failed')
   const recentJobs = jobs.slice(0, 8)
+
+  const displayedActiveJobs = selectedBatchFilter
+    ? activeJobs.filter((job) => job.batch_id === selectedBatchFilter)
+    : activeJobs
+  const displayedHistoryJobs = selectedBatchFilter
+    ? historyJobs.filter((job) => job.batch_id === selectedBatchFilter)
+    : historyJobs
   const batchesById = Object.fromEntries(batches.map((batch) => [batch.id, batch]))
 
   const doneCount = jobs.filter((job) => job.status === 'done').length
   const failedCount = jobs.filter((job) => job.status === 'failed').length
   const processingCount = jobs.filter((job) => job.status === 'processing').length
   const queuedCount = jobs.filter((job) => job.status === 'queued').length
+
+  function navigateToView(view: AppView) {
+    setCurrentView(view)
+    setSelectedBatchFilter(null)
+  }
+
+  useEffect(() => {
+    if (selectedBatchFilter) {
+      const batchJobs = jobs.filter((j) => j.batch_id === selectedBatchFilter)
+      if (batchJobs.length > 0 && (!selectedJobId || !batchJobs.some((j) => j.id === selectedJobId))) {
+        setSelectedJobId(batchJobs[0].id)
+      }
+    }
+  }, [selectedBatchFilter, jobs, selectedJobId])
 
   useEffect(() => {
     if (currentView === 'active-jobs') {
@@ -153,7 +175,7 @@ export default function App() {
                 key={item.id}
                 type="button"
                 className={`nav-item${currentView === item.id ? ' active' : ''}`}
-                onClick={() => setCurrentView(item.id)}
+                onClick={() => navigateToView(item.id)}
               >
                 <span className="label">{item.label}</span>
                 {item.count !== undefined ? <span className="count">{item.count}</span> : null}
@@ -221,11 +243,14 @@ export default function App() {
                 <JobTable
                   title="Active Jobs"
                   description="Queued and processing"
-                  jobs={activeJobs}
+                  jobs={displayedActiveJobs}
                   batchesById={batchesById}
                   selectedJobId={selectedJobId}
                   onSelectJob={setSelectedJobId}
                   isLoading={batchesQuery.isLoading}
+                  onSelectBatch={setSelectedBatchFilter}
+                  selectedBatchFilter={selectedBatchFilter}
+                  onClearBatchFilter={() => setSelectedBatchFilter(null)}
                 />
                 <JobDetail
                   job={selectedJob ?? null}
@@ -249,11 +274,14 @@ export default function App() {
                 <JobTable
                   title="History"
                   description="Completed and failed"
-                  jobs={historyJobs}
+                  jobs={displayedHistoryJobs}
                   batchesById={batchesById}
                   selectedJobId={selectedJobId}
                   onSelectJob={setSelectedJobId}
                   isLoading={batchesQuery.isLoading}
+                  onSelectBatch={setSelectedBatchFilter}
+                  selectedBatchFilter={selectedBatchFilter}
+                  onClearBatchFilter={() => setSelectedBatchFilter(null)}
                 />
                 <JobDetail
                   job={selectedJob ?? null}
