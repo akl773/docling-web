@@ -64,6 +64,12 @@ class StorageManager:
             shutil.copyfileobj(stream, output)
         return self.relative_to_data(destination)
 
+    def purge_all(self) -> None:
+        for directory in (self.uploads_dir, self.results_dir, self.bundles_dir):
+            if directory.exists():
+                shutil.rmtree(directory)
+            directory.mkdir(parents=True, exist_ok=True)
+
     def prepare_results_dir(self, job_id: str) -> tuple[Path, Path]:
         result_dir = self.results_dir / job_id
         if result_dir.exists():

@@ -206,6 +206,15 @@ def mark_job_failed(
     return job
 
 
+def delete_all_batches(session: Session) -> int:
+    batches = list(session.scalars(select(BatchModel)))
+    count = len(batches)
+    for batch in batches:
+        session.delete(batch)
+    session.flush()
+    return count
+
+
 def retry_failed_job(session: Session, job_id: str) -> JobModel | None:
     job = session.get(JobModel, job_id)
     if job is None:
