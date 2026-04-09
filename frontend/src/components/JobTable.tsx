@@ -275,7 +275,7 @@ export function JobTable({ title, description, jobs, batchesById, selectedJobId,
       const batch = batchesById[batchId]
       if (!batch) continue
 
-      const statusBreakdown: Record<JobStatus, number> = { queued: 0, processing: 0, done: 0, failed: 0 }
+      const statusBreakdown: Record<JobStatus, number> = { queued: 0, processing: 0, done: 0, failed: 0, cancelled: 0 }
       let totalProgress = 0
       let latestCreatedAt = batchJobs[0].created_at
       for (const j of batchJobs) {

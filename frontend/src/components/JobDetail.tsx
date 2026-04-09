@@ -22,9 +22,11 @@ type JobDetailProps = {
   isLoading?: boolean
   onRetry?: () => Promise<unknown> | void
   isRetrying?: boolean
+  onCancel?: () => Promise<unknown> | void
+  isCancelling?: boolean
 }
 
-export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading, onRetry, isRetrying = false }: JobDetailProps) {
+export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading, onRetry, isRetrying = false, onCancel, isCancelling = false }: JobDetailProps) {
   const [previewTab, setPreviewTab] = useState<'pdf' | 'markdown'>('pdf')
 
   async function copyMarkdown() {
@@ -54,8 +56,14 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading, 
           <h2>{job.original_filename}</h2>
         </div>
         <div className="action-row">
-          {job.status === 'failed' && onRetry ? (
-            <button className="action-pill" disabled={isRetrying} onClick={() => void onRetry()} type="button" title="Retry failed job">
+          {(job.status === 'queued' || job.status === 'processing') && onCancel ? (
+            <button className="action-pill danger" disabled={isCancelling} onClick={() => void onCancel()} type="button" title="Cancel job">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              <span>{isCancelling ? 'Cancelling...' : 'Cancel'}</span>
+            </button>
+          ) : null}
+          {(job.status === 'failed' || job.status === 'cancelled') && onRetry ? (
+            <button className="action-pill" disabled={isRetrying} onClick={() => void onRetry()} type="button" title="Retry job">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" /><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14" /></svg>
               <span>{isRetrying ? 'Retrying...' : 'Retry'}</span>
             </button>
@@ -123,7 +131,11 @@ export function JobDetail({ job, batch, markdown, isMarkdownLoading, isLoading, 
             </button>
           </div>
           {isMarkdownLoading ? <p className="muted">Loading generated markdown...</p> : null}
-          {!isMarkdownLoading && !markdown && job.status !== 'done' ? <p className="muted">Markdown will appear when conversion completes.</p> : null}
+          {!isMarkdownLoading && !markdown && job.status !== 'done' ? (
+            <p className="muted">
+              {job.status === 'cancelled' ? 'Job was cancelled before conversion completed.' : 'Markdown will appear when conversion completes.'}
+            </p>
+          ) : null}
           {!isMarkdownLoading && markdown ? (
             <div className="markdown-shell">
               <ReactMarkdown

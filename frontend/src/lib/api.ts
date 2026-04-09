@@ -1,7 +1,7 @@
 export type TableMode = 'off' | 'fast' | 'accurate'
 export type ImageHandling = 'none' | 'referenced' | 'embedded'
-export type JobStatus = 'queued' | 'processing' | 'done' | 'failed'
-export type BatchStatus = 'queued' | 'processing' | 'done' | 'failed' | 'partial'
+export type JobStatus = 'queued' | 'processing' | 'done' | 'failed' | 'cancelled'
+export type BatchStatus = 'queued' | 'processing' | 'done' | 'failed' | 'partial' | 'cancelled'
 
 export type ConversionSettings = {
   ocr_enabled: boolean
@@ -72,6 +72,13 @@ export async function fetchMarkdown(jobId: string): Promise<string> {
 
 export async function retryJob(jobId: string): Promise<Job> {
   const response = await fetch(`/api/jobs/${jobId}/retry`, {
+    method: 'POST',
+  })
+  return parseResponse<Job>(response)
+}
+
+export async function cancelJob(jobId: string): Promise<Job> {
+  const response = await fetch(`/api/jobs/${jobId}/cancel`, {
     method: 'POST',
   })
   return parseResponse<Job>(response)

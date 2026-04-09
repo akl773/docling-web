@@ -7,6 +7,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { UploadPanel } from './components/UploadPanel'
 import {
   allBatchesDownloadUrl,
+  cancelJob,
   createBatch,
   deleteAllBatches,
   fetchBatches,
@@ -212,6 +213,22 @@ export default function App() {
     },
   })
 
+  const cancelMutation = useMutation({
+    mutationFn: cancelJob,
+    onSuccess: async (job) => {
+      setFeedback(`Cancelled ${job.original_filename}.`)
+      queryClient.setQueryData(['job', job.id], job)
+      setSelectedJobId(job.id)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+        queryClient.invalidateQueries({ queryKey: ['job', job.id] }),
+      ])
+    },
+    onError: (error) => {
+      setFeedback(error instanceof Error ? error.message : 'Cancel failed')
+    },
+  })
+
   const deleteAllMutation = useMutation({
     mutationFn: deleteAllBatches,
     onSuccess: async (result) => {
@@ -225,7 +242,7 @@ export default function App() {
   })
 
   const activeJobs = jobs.filter((job) => job.status === 'queued' || job.status === 'processing')
-  const historyJobs = jobs.filter((job) => job.status === 'done' || job.status === 'failed')
+  const historyJobs = jobs.filter((job) => job.status === 'done' || job.status === 'failed' || job.status === 'cancelled')
   const recentJobs = jobs.slice(0, 8)
 
   const displayedActiveJobs = selectedBatchFilter
@@ -240,6 +257,7 @@ export default function App() {
   const failedCount = jobs.filter((job) => job.status === 'failed').length
   const processingCount = jobs.filter((job) => job.status === 'processing').length
   const queuedCount = jobs.filter((job) => job.status === 'queued').length
+  const cancelledCount = jobs.filter((job) => job.status === 'cancelled').length
 
   useEffect(() => {
     if (selectedBatchFilter) {
@@ -396,6 +414,10 @@ export default function App() {
           <span className="status-chip">
             <span className="status-dot failed" />
             Failed <span className="count">{failedCount}</span>
+          </span>
+          <span className="status-chip">
+            <span className="status-dot cancelled" />
+            Cancelled <span className="count">{cancelledCount}</span>
           </span>
         </div>
         {feedback ? <p className="notice-banner">{feedback}</p> : null}
@@ -564,8 +586,10 @@ export default function App() {
                   markdown={markdownQuery.data ?? ''}
                   isMarkdownLoading={markdownQuery.isLoading}
                   isLoading={selectedJobQuery.isLoading}
-                  onRetry={selectedJob?.status === 'failed' ? () => retryMutation.mutateAsync(selectedJob.id) : undefined}
+                  onRetry={selectedJob && (selectedJob.status === 'failed' || selectedJob.status === 'cancelled') ? () => retryMutation.mutateAsync(selectedJob.id) : undefined}
                   isRetrying={retryMutation.isPending && retryMutation.variables === selectedJob?.id}
+                  onCancel={selectedJob && (selectedJob.status === 'queued' || selectedJob.status === 'processing') ? () => cancelMutation.mutateAsync(selectedJob.id) : undefined}
+                  isCancelling={cancelMutation.isPending && cancelMutation.variables === selectedJob?.id}
                 />
               </section>
             )
@@ -615,8 +639,10 @@ export default function App() {
                   markdown={markdownQuery.data ?? ''}
                   isMarkdownLoading={markdownQuery.isLoading}
                   isLoading={selectedJobQuery.isLoading}
-                  onRetry={selectedJob?.status === 'failed' ? () => retryMutation.mutateAsync(selectedJob.id) : undefined}
+                  onRetry={selectedJob && (selectedJob.status === 'failed' || selectedJob.status === 'cancelled') ? () => retryMutation.mutateAsync(selectedJob.id) : undefined}
                   isRetrying={retryMutation.isPending && retryMutation.variables === selectedJob?.id}
+                  onCancel={selectedJob && (selectedJob.status === 'queued' || selectedJob.status === 'processing') ? () => cancelMutation.mutateAsync(selectedJob.id) : undefined}
+                  isCancelling={cancelMutation.isPending && cancelMutation.variables === selectedJob?.id}
                 />
               </section>
             )
