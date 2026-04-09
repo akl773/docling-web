@@ -39,17 +39,18 @@ def merge_settings(
 def derive_batch_status(job_statuses: list[str]) -> str:
     if not job_statuses:
         return BatchStatus.QUEUED.value
+    terminal = {JobStatus.DONE.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
     if all(status == JobStatus.DONE.value for status in job_statuses):
         return BatchStatus.DONE.value
     if all(status == JobStatus.FAILED.value for status in job_statuses):
         return BatchStatus.FAILED.value
+    if all(status == JobStatus.CANCELLED.value for status in job_statuses):
+        return BatchStatus.CANCELLED.value
     if any(status == JobStatus.PROCESSING.value for status in job_statuses):
         return BatchStatus.PROCESSING.value
     if any(status == JobStatus.QUEUED.value for status in job_statuses):
         return BatchStatus.QUEUED.value
-    if any(status == JobStatus.DONE.value for status in job_statuses) and any(
-        status == JobStatus.FAILED.value for status in job_statuses
-    ):
+    if all(status in terminal for status in job_statuses):
         return BatchStatus.PARTIAL.value
     return BatchStatus.QUEUED.value
 
@@ -213,6 +214,17 @@ def delete_all_batches(session: Session) -> int:
         session.delete(batch)
     session.flush()
     return count
+
+
+def cancel_job(session: Session, job_id: str) -> JobModel | None:
+    job = session.get(JobModel, job_id)
+    if job is None:
+        return None
+    job.status = JobStatus.CANCELLED.value
+    job.finished_at = utcnow()
+    job.error_message = "Cancelled by user"
+    refresh_batch_status(session, job.batch_id)
+    return job
 
 
 def retry_failed_job(session: Session, job_id: str) -> JobModel | None:

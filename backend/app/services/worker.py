@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database import session_scope
 from app.repositories import (
+    cancel_job,
     claim_next_job,
     get_job,
     mark_job_done,
@@ -36,6 +37,10 @@ class ShutdownRequested(Exception):
     pass
 
 
+class CancelRequested(Exception):
+    pass
+
+
 class WorkerCoordinator:
     def __init__(
         self,
@@ -53,6 +58,8 @@ class WorkerCoordinator:
         self.max_concurrent_jobs = max(1, max_concurrent_jobs)
         self.poll_interval = poll_interval
         self.stop_event = threading.Event()
+        self._cancel_events: dict[str, threading.Event] = {}
+        self._cancel_lock = threading.Lock()
         self.thread: threading.Thread | None = None
         self.executor = ThreadPoolExecutor(
             max_workers=self.max_concurrent_jobs, thread_name_prefix="docling-worker"
@@ -84,6 +91,14 @@ class WorkerCoordinator:
             self.thread = None
         self.executor.shutdown(wait=True, cancel_futures=False)
 
+    def request_cancel(self, job_id: str) -> bool:
+        with self._cancel_lock:
+            event = self._cancel_events.get(job_id)
+            if event is not None:
+                event.set()
+                return True
+        return False
+
     def _run_loop(self) -> None:
         while not self.stop_event.is_set():
             self._reap_finished_futures()
@@ -107,6 +122,9 @@ class WorkerCoordinator:
                 logger.exception("Worker future crashed for job %s", job_id)
 
     def _process_job(self, job_id: str) -> None:
+        cancel_event = threading.Event()
+        with self._cancel_lock:
+            self._cancel_events[job_id] = cancel_event
         started = time.perf_counter()
         try:
             logger.info(
@@ -116,9 +134,15 @@ class WorkerCoordinator:
                 threading.get_ident(),
                 len(self.running),
             )
+
+            if cancel_event.is_set():
+                raise CancelRequested
+
             with session_scope(self.session_factory) as session:
                 job = get_job(session, job_id)
                 if job is None:
+                    return
+                if job.status == "cancelled":
                     return
                 source_path = self.storage.resolve(job.stored_pdf_path)
                 markdown_path, assets_dir = self.storage.prepare_results_dir(job.id)
@@ -128,7 +152,7 @@ class WorkerCoordinator:
                 set_job_progress(session, job_id, 50)
 
             self._run_conversion(
-                job_id, source_path, markdown_path, assets_dir, settings
+                job_id, source_path, markdown_path, assets_dir, settings, cancel_event
             )
 
             with session_scope(self.session_factory) as session:
@@ -151,6 +175,16 @@ class WorkerCoordinator:
                 threading.get_ident(),
                 (time.perf_counter() - started) * 1000,
             )
+        except CancelRequested:
+            logger.info(
+                "Job cancelled job_id=%s pid=%s tid=%s duration_ms=%.1f",
+                job_id,
+                os.getpid(),
+                threading.get_ident(),
+                (time.perf_counter() - started) * 1000,
+            )
+            with session_scope(self.session_factory) as session:
+                cancel_job(session, job_id)
         except Exception as exc:
             logger.exception(
                 "Job failed job_id=%s pid=%s tid=%s duration_ms=%.1f",
@@ -161,6 +195,9 @@ class WorkerCoordinator:
             )
             with session_scope(self.session_factory) as session:
                 mark_job_failed(session, job_id, str(exc))
+        finally:
+            with self._cancel_lock:
+                self._cancel_events.pop(job_id, None)
 
     def _run_conversion(
         self,
@@ -169,9 +206,13 @@ class WorkerCoordinator:
         markdown_path: Path,
         assets_dir: Path,
         settings: ConversionSettings,
+        cancel_event: threading.Event,
     ) -> None:
         if not isinstance(self.converter, DoclingConversionService):
             document = self.converter.convert_document(source_path, settings)
+
+            if cancel_event.is_set():
+                raise CancelRequested
 
             with session_scope(self.session_factory) as session:
                 set_job_progress(session, job_id, 75)
@@ -180,7 +221,7 @@ class WorkerCoordinator:
             return
 
         self._run_docling_conversion_in_subprocess(
-            job_id, source_path, markdown_path, assets_dir, settings
+            job_id, source_path, markdown_path, assets_dir, settings, cancel_event
         )
 
     def _run_docling_conversion_in_subprocess(
@@ -190,6 +231,7 @@ class WorkerCoordinator:
         markdown_path: Path,
         assets_dir: Path,
         settings: ConversionSettings,
+        cancel_event: threading.Event,
     ) -> None:
         result_queue: mp.Queue[dict[str, str | None]] = mp.Queue(maxsize=1)
         process = mp.get_context("spawn").Process(
@@ -218,6 +260,13 @@ class WorkerCoordinator:
                     process.terminate()
                     process.join(timeout=2)
                     raise ShutdownRequested
+                if cancel_event.is_set():
+                    process.terminate()
+                    process.join(timeout=2)
+                    if process.is_alive():
+                        process.kill()
+                        process.join(timeout=1)
+                    raise CancelRequested
 
             process.join(timeout=0.1)
 

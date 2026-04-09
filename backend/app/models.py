@@ -21,6 +21,7 @@ class BatchStatus(StrEnum):
     DONE = "done"
     FAILED = "failed"
     PARTIAL = "partial"
+    CANCELLED = "cancelled"
 
 
 class JobStatus(StrEnum):
@@ -28,6 +29,7 @@ class JobStatus(StrEnum):
     PROCESSING = "processing"
     DONE = "done"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class BatchModel(Base):
